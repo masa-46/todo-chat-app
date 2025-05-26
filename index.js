@@ -1,64 +1,54 @@
-// index.js
+// index.js  ─ Prisma 版バックエンド
 const express = require('express');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 const app = express();
-
-// JSON ボディをパースするミドルウェア
 app.use(express.json());
 
-// In-memory ストア
-let todos = [];
-let nextId = 1;
+// Health
+app.get('/health', (_req, res) => res.json({ status: 'OK' }));
 
-// Health-check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK' });
-});
-
-// ① GET /todos — 全件取得
-app.get('/todos', (req, res) => {
+// GET /todos
+app.get('/todos', async (_req, res) => {
+  const todos = await prisma.todo.findMany({ orderBy: { id: 'asc' } });
   res.json(todos);
 });
 
-// ② POST /todos — 追加
-app.post('/todos', (req, res) => {
-  const { text } = req.body;
-  if (typeof text !== 'string' || !text.trim()) {
-    return res.status(400).json({ error: 'text は必須の文字列です' });
-  }
-  const todo = { id: nextId++, text: text.trim() };
-  todos.push(todo);
+// POST /todos
+app.post('/todos', async (req, res) => {
+  const text = req.body.text?.trim();
+  if (!text) return res.status(400).json({ error: 'text は必須' });
+  const todo = await prisma.todo.create({ data: { text } });
   res.status(201).json(todo);
 });
 
-// ③ PUT /todos/:id — 更新
-app.put('/todos/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const { text } = req.body;
-  const idx = todos.findIndex(t => t.id === id);
-  if (idx < 0) {
-    return res.status(404).json({ error: '該当 ToDo がありません' });
+// PUT /todos/:id
+app.put('/todos/:id', async (req, res) => {
+  try {
+    const todo = await prisma.todo.update({
+      where: { id: Number(req.params.id) },
+      data: { text: req.body.text?.trim() },
+    });
+    res.json(todo);
+  } catch {
+    res.status(404).json({ error: '該当 ToDo なし' });
   }
-  if (typeof text !== 'string' || !text.trim()) {
-    return res.status(400).json({ error: 'text は必須の文字列です' });
-  }
-  todos[idx].text = text.trim();
-  res.json(todos[idx]);
 });
 
-// ④ DELETE /todos/:id — 削除
-app.delete('/todos/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const before = todos.length;
-  todos = todos.filter(t => t.id !== id);
-  if (todos.length === before) {
-    return res.status(404).json({ error: '該当 ToDo がありません' });
+// DELETE /todos/:id
+app.delete('/todos/:id', async (req, res) => {
+  try {
+    await prisma.todo.delete({ where: { id: Number(req.params.id) } });
+    res.status(204).send();
+  } catch {
+    res.status(404).json({ error: '該当 ToDo なし' });
   }
-  res.status(204).send();
 });
 
 // サーバー起動
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-});
+// テスト実行時には listen させない
+if (require.main === module) {
+ const port = process.env.PORT || 3000;
+ app.listen(port, () => console.log(`Server http://localhost:${port}`));
+}
 module.exports = app;

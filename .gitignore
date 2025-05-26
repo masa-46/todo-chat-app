@@ -12,3 +12,5 @@ pnpm-debug.log*
 # OS ごとのゴミファイル
 .DS_Store
 Thumbs.db
+
+/generated/prisma
