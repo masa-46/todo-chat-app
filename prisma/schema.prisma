@@ -1,3 +1,5 @@
+// ── 1. 生成器とデータソースはファイル先頭 ──
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,8 +9,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ── 2. User モデル ──
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+
+  todos     Todo[]   // User–Todo の 1:N リレーション
+}
+
+// ── 3. Todo モデル ──
+
 model Todo {
   id        Int      @id @default(autoincrement())
   text      String
   createdAt DateTime @default(now())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
 }
