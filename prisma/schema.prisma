@@ -5,9 +5,10 @@ generator client {
 }
 
 datasource db {
-    provider = env("DATABASE_PROVIDER")  // ← 環境変数で provider を切り替える
-    url      = env("DATABASE_URL")
+  provider = "postgresql"   // ← ここをリテラルにする
+  url      = env("DATABASE_URL")
 }
+
 
 // ── 2. User モデル ──
 
