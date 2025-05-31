@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>ToDo Chat App</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
+    #messages { list-style: none; padding: 0; }
+    #messages li { padding: 4px 0; border-bottom: 1px solid #ddd; }
+    #input { width: 80%; }
+    #send { width: 18%; }
+  </style>
+</head>
+<body>
+  <h1>リアルタイムチャット</h1>
+  <ul id="messages"></ul>
+  <input id="input" placeholder="メッセージを入力">
+  <button id="send">送信</button>
+
+  <script src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+  <script>
+    // サーバーと接続
+    const socket = io('http://localhost:3000');
+
+    const messagesEl = document.getElementById('messages');
+    const inputEl    = document.getElementById('input');
+    const sendBtn    = document.getElementById('send');
+
+    // 過去メッセージ要求
+    socket.emit('getMessages');
+    socket.on('messages', (msgs) => {
+      messagesEl.innerHTML = '';
+      msgs.forEach(m => {
+        const li = document.createElement('li');
+        li.textContent = `[${new Date(m.createdAt).toLocaleTimeString()}] ${m.text}`;
+        messagesEl.appendChild(li);
+      });
+    });
+
+    // 新規メッセージ受信
+    socket.on('newMessage', (m) => {
+      const li = document.createElement('li');
+      li.textContent = `[${new Date(m.createdAt).toLocaleTimeString()}] ${m.text}`;
+      messagesEl.appendChild(li);
+    });
+
+    // 送信ボタン
+    sendBtn.onclick = () => {
+      const text = inputEl.value.trim();
+      if (!text) return;
+      // userId は固定でテスト用に 1 を送信
+      socket.emit('sendMessage', { userId: 1, text });
+      inputEl.value = '';
+    };
+  </script>
+</body>
+</html>

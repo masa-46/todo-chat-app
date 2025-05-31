@@ -9,6 +9,29 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: todo_user
+          POSTGRES_PASSWORD: todo_pass
+          POSTGRES_DB: todo_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U todo_user -d todo_dev"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    # ここで DATABASE_URL を直接書く。ホスト名とポート、認証情報は services:postgres と揃える
+    env:
+      DATABASE_URL: "postgresql://todo_user:todo_pass@localhost:5432/todo_dev"
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
     strategy:
       matrix:
         node-version: [18.x]
@@ -20,9 +43,13 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
+          cache: "npm"
 
       - name: Install backend dependencies
         run: npm ci
+
+      - name: Run Prisma migrate (for CI)
+        run: npx prisma migrate deploy
 
       - name: Run backend tests
         run: npm test

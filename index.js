@@ -1,12 +1,30 @@
 // index.js  ─ Prisma + JWT 版バックエンド
+require('dotenv').config();
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const bcrypt  = require('bcryptjs');
+const jwt     = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+
+const http     = require('http');
+const mongoose = require('mongoose');
+const { Server } = require('socket.io');
+const Message  = require('./models/Message');  // Message モデル
 
 const prisma = new PrismaClient();
 const app = express();
+
+require('./scheduler');
+// MongoDB 接続（MONGODB_URI は .env に設定済みのはず）
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
+
 app.use(express.json());
+app.use(express.static('public'));
+
 
 // ── JWT 検証ミドルウェア ─────────────────
 function authRequired(req, res, next) {
@@ -65,6 +83,27 @@ app.get('/todos', authRequired, async (req, res) => {
   res.json(todos);
 });
 
+app.get('/tasks', async (req, res) => {
+  // 最新 50 件を降順に取得
+  const logs = await prisma.taskLog.findMany({
+    orderBy: { runAt: 'desc' },
+    take: 50,
+  });
+  res.json(logs);
+});
+
+app.get('/tasks', async (req, res) => {
+  try {
+    const logs = await prisma.taskLog.findMany({
+      orderBy: { runAt: 'desc' },
+      take: 50,
+    });
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: 'TaskLog 取得に失敗しました', detail: err.message });
+  }
+});
+
 // POST /todos
 app.post('/todos', authRequired, async (req, res) => {
   const text = req.body.text?.trim();
@@ -98,10 +137,33 @@ app.delete('/todos/:id', authRequired, async (req, res) => {
   }
 });
 
-// ── サーバー起動（テスト時は起動しない） ──
-if (require.main === module) {
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => console.log(`Server http://localhost:${port}`));
-}
+ // ── HTTP サーバー＋Socket.io セットアップ ──
+ const server = http.createServer(app);
+ const io = new Server(server, { cors: { origin: '*' } });
 
-module.exports = app;
+ // ── Socket.io のイベントハンドラ ──
+ io.on('connection', socket => {
+   console.log(`🟢 socket connected: ${socket.id}`);
+   socket.on('getMessages', async () => {
+     const msgs = await Message.find().sort({ createdAt: 1 });
+     socket.emit('messages', msgs);
+   });
+  socket.on('sendMessage', async ({ userId, text }) => {
+     console.log('🔥 Received sendMessage:', text);
+    const msg = await Message.create({ userId, text });
+     io.emit('newMessage', msg);
+   });
+   socket.on('disconnect', () => {
+     console.log(`🔴 socket disconnected: ${socket.id}`);
+   });
+ });
+
+ // ── サーバー起動 ──
+ if (require.main === module) {
+   const port = process.env.PORT || 3000;
+   server.listen(port, () => {
+     console.log(`Server (with Socket.io) listening on http://localhost:${port}`);
+   });
+ }
+
+ module.exports = { app, server };

@@ -29,3 +29,12 @@ model Todo {
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
 }
+// ── 既存のモデル定義（Todo, User など）の下に追加
+model TaskLog {
+  id         Int      @id @default(autoincrement())
+  name       String   // ジョブの名前（例："daily-cleanup"）
+  status     String   // 実行結果: "success" or "failure"
+  message    String?  // エラーがあれば内容を格納
+  runAt      DateTime @default(now())  // 実行時刻
+  retryCount Int      @default(0)      // リトライ回数
+}

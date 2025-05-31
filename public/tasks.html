@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>TaskLog モニタリング</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 2em auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>ジョブ実行履歴</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>ジョブ名</th><th>ステータス</th>
+        <th>メッセージ</th><th>実行時刻</th><th>リトライ回数</th>
+      </tr>
+    </thead>
+    <tbody id="logs"></tbody>
+  </table>
+  <script>
+    async function fetchLogs() {
+      const res = await fetch('/tasks');
+      const logs = await res.json();
+      const tbody = document.getElementById('logs');
+      tbody.innerHTML = '';
+      logs.forEach(l => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${l.id}</td>
+          <td>${l.name}</td>
+          <td>${l.status}</td>
+          <td>${l.message}</td>
+          <td>${new Date(l.runAt).toLocaleString()}</td>
+          <td>${l.retryCount}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+    fetchLogs();
+    setInterval(fetchLogs, 10000); // 10秒ごとに更新
+  </script>
+</body>
+</html>
