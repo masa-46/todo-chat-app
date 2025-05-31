@@ -52,7 +52,9 @@ jobs:
         run: npx prisma migrate deploy
 
       - name: Run backend tests
-        run: npm test
+        run: |
+          npm install    # （Lockfileがきちんと同期されていれば不要かもしれませんが、一応確実に）
+          NODE_ENV=test npm test
 
       - name: Install frontend dependencies
         run: |
