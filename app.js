@@ -1,22 +1,19 @@
-// index.js  ─ Prisma + JWT 版バックエンド
-require('dotenv').config();
+// ─── app.js ─────────────────────────────────────────────────────────────────
+
+require('dotenv').config();          // .env（テスト時は .env.test）が自動で読み込まれる
 const express = require('express');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
-
-const http     = require('http');
 const mongoose = require('mongoose');
-const { Server } = require('socket.io');
-const Message  = require('./models/Message');
 
+// PrismaClient の初期化
 const prisma = new PrismaClient();
+
+// Express 本体を生成
 const app = express();
 
-// ── scheduler.js を読み込む（テスト時は早期 return => cron登録をスキップ） ──
-require('./scheduler');
-
-// ── MongoDB 接続はテスト時にはスキップ ──
+// ── MongoDB: テスト環境では接続をスキップ ─────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {
   mongoose
     .connect(process.env.MONGODB_URI, {
@@ -25,14 +22,13 @@ if (process.env.NODE_ENV !== 'test') {
     })
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
-} else {
-  console.log('ℹ️ Skipping MongoDB connect because NODE_ENV=test');
 }
 
+// ── ミドルウェア ───────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.static('public'));
 
-// ── JWT ミドルウェア ─────────────────────────────────
+// ── JWT 検証ミドルウェア ────────────────────────────────────────────────────
 function authRequired(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const [scheme, token] = authHeader.split(' ');
@@ -48,7 +44,7 @@ function authRequired(req, res, next) {
   }
 }
 
-// ── Auth: ユーザー登録 ─────────────────────────────────
+// ── Auth: ユーザー登録 ───────────────────────────────────────────────────────
 app.post('/auth/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -63,7 +59,7 @@ app.post('/auth/register', async (req, res) => {
   }
 });
 
-// ── Auth: ログイン ─────────────────────────────────
+// ── Auth: ログイン ─────────────────────────────────────────────────────────
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -81,12 +77,12 @@ app.post('/auth/login', async (req, res) => {
   res.json({ accessToken: token });
 });
 
-// ── Health Check ───────────────────────────────────────
+// ── Health Check ────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'OK' });
 });
 
-// ── ToDo CRUD ─────────────────────────────────────────
+// ── ToDo CRUD ────────────────────────────────────────────────────────────────
 // GET /todos
 app.get('/todos', authRequired, async (req, res) => {
   const todos = await prisma.todo.findMany({
@@ -94,19 +90,6 @@ app.get('/todos', authRequired, async (req, res) => {
     orderBy: { id: 'asc' },
   });
   res.json(todos);
-});
-
-// GET /tasks (TaskLog の一覧取得)
-app.get('/tasks', async (req, res) => {
-  try {
-    const logs = await prisma.taskLog.findMany({
-      orderBy: { runAt: 'desc' },
-      take: 50,
-    });
-    res.json(logs);
-  } catch (err) {
-    res.status(500).json({ error: 'TaskLog 取得に失敗しました', detail: err.message });
-  }
 });
 
 // POST /todos
@@ -129,7 +112,9 @@ app.put('/todos/:id', authRequired, async (req, res) => {
       data: { text: req.body.text?.trim() },
     });
     if (result.count === 0) throw new Error();
-    const todo = await prisma.todo.findUnique({ where: { id: Number(req.params.id) } });
+    const todo = await prisma.todo.findUnique({
+      where: { id: Number(req.params.id) },
+    });
     res.json(todo);
   } catch {
     res.status(404).json({ error: '操作対象がありません' });
@@ -149,32 +134,20 @@ app.delete('/todos/:id', authRequired, async (req, res) => {
   }
 });
 
-// ── HTTP サーバー＋Socket.io セットアップ ────────────────
-if (require.main === module) {
-  const port = process.env.PORT || 3000;
-  const server = http.createServer(app);
-  const io = new Server(server, { cors: { origin: '*' } });
-
-  io.on('connection', socket => {
-    console.log(`🟢 socket connected: ${socket.id}`);
-    socket.on('getMessages', async () => {
-      const msgs = await Message.find().sort({ createdAt: 1 });
-      socket.emit('messages', msgs);
+// ── TaskLog 取得エンドポイント ─────────────────────────────────────────────────
+// GET /tasks
+app.get('/tasks', async (req, res) => {
+  try {
+    const logs = await prisma.taskLog.findMany({
+      orderBy: { runAt: 'desc' },
+      take: 50,
     });
-    socket.on('sendMessage', async ({ userId, text }) => {
-      console.log('🔥 Received sendMessage:', text);
-      const msg = await Message.create({ userId, text });
-      io.emit('newMessage', msg);
-    });
-    socket.on('disconnect', () => {
-      console.log(`🔴 socket disconnected: ${socket.id}`);
-    });
-  });
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: 'TaskLog 取得に失敗しました', detail: err.message });
+  }
+});
 
-  server.listen(port, () => {
-    console.log(`Server (with Socket.io) listening on http://localhost:${port}`);
-  });
-}
-
-// テストコードからは app と prisma を使えるようエクスポート
+// ── Export ────────────────────────────────────────────────────────────────────
+// 外部（index.js やテストファイル）から `require('app.js')` できるようにエクスポート
 module.exports = { app, prisma };

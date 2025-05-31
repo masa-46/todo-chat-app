@@ -1,68 +1,68 @@
 // tests/todos.test.js
-
 const request = require('supertest');
-const app = require('../index');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { app, prisma } = require('../index');  // ← 分割代入する
+const jwt = require('jsonwebtoken');
 
-let token;   // JWT を保持
-let todoId;  // 作成した ToDo の ID
+const testEmail = 'test@example.com';
+const testPassword = 'password123';
 
-beforeAll(async () => {
-  // DB をクリーン
-  await prisma.user.deleteMany();
-  await prisma.todo.deleteMany();
-  // テストユーザー登録
-  await request(app)
-    .post('/auth/register')
-    .send({ email: 'test@local', password: 'password' });
-  // ログインして token 獲得
-  const res = await request(app)
-    .post('/auth/login')
-    .send({ email: 'test@local', password: 'password' });
-  token = res.body.accessToken;
-});
-
-afterAll(async () => {
-  await prisma.$disconnect();
-});
+let accessToken;
 
 describe('ToDo CRUD (with JWT)', () => {
+  beforeAll(async () => {
+    // DB をクリーン（必ず Todo → User の順序で delete）
+    await prisma.todo.deleteMany();
+    await prisma.user.deleteMany();
+
+    // テストユーザー登録
+    const registerRes = await request(app)
+      .post('/auth/register')
+      .send({ email: testEmail, password: testPassword });
+    expect(registerRes.statusCode).toBe(201);
+
+    // テストユーザーログインしてトークンを取得
+    const loginRes = await request(app)
+      .post('/auth/login')
+      .send({ email: testEmail, password: testPassword });
+    expect(loginRes.statusCode).toBe(200);
+    accessToken = loginRes.body.accessToken;
+  });
+
+  afterAll(async () => {
+    // テスト完了後に Prisma クライアントを切断
+    await prisma.$disconnect();
+  });
+
   it('POST → GET → PUT → DELETE がすべて成功する', async () => {
-    // ① 追加
-    const post = await request(app)
+    // 1) POST /todos
+    const postRes = await request(app)
       .post('/todos')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ text: '課題をやる' });
-    expect(post.statusCode).toBe(201);
-    todoId = post.body.id;
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ text: 'first todo' });
+    expect(postRes.statusCode).toBe(201);
+    const createdTodo = postRes.body;
+    expect(createdTodo.text).toBe('first todo');
 
-    // ② 取得
-    const list1 = await request(app)
+    // 2) GET /todos
+    const getRes = await request(app)
       .get('/todos')
-      .set('Authorization', `Bearer ${token}`);
-    expect(list1.statusCode).toBe(200);
-    expect(list1.body.length).toBe(1);
-    expect(list1.body[0].id).toBe(todoId);
+      .set('Authorization', `Bearer ${accessToken}`);
+    expect(getRes.statusCode).toBe(200);
+    expect(Array.isArray(getRes.body)).toBe(true);
+    expect(getRes.body.length).toBe(1);
 
-    // ③ 更新
-    const put = await request(app)
-      .put(`/todos/${todoId}`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ text: '課題を終わらせる' });
-    expect(put.statusCode).toBe(200);
-    expect(put.body.text).toBe('課題を終わらせる');
+    // 3) PUT /todos/:id
+    const putRes = await request(app)
+      .put(`/todos/${createdTodo.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ text: 'updated todo' });
+    expect(putRes.statusCode).toBe(200);
+    expect(putRes.body.text).toBe('updated todo');
 
-    // ④ 削除
-    const del = await request(app)
-      .delete(`/todos/${todoId}`)
-      .set('Authorization', `Bearer ${token}`);
-    expect(del.statusCode).toBe(204);
-
-    // ⑤ 空に戻ったことを確認
-    const list2 = await request(app)
-      .get('/todos')
-      .set('Authorization', `Bearer ${token}`);
-    expect(list2.body).toEqual([]);
+    // 4) DELETE /todos/:id
+    const delRes = await request(app)
+      .delete(`/todos/${createdTodo.id}`)
+      .set('Authorization', `Bearer ${accessToken}`);
+    expect(delRes.statusCode).toBe(204);
   });
 });

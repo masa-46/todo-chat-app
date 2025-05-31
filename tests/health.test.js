@@ -1,5 +1,7 @@
+// tests/health.test.js
 const request = require('supertest');
-const app = require('../index');   // index.js で export した app
+// 必ず { app } のみを取り出す
+const { app } = require('../index');
 
 describe('GET /health', () => {
   it('should respond 200 with {status:"OK"}', async () => {
