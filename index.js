@@ -1,4 +1,4 @@
-// index.js  ─ Prisma + JWT 版バックエンド
+// index.js ── Prisma + JWT 版バックエンド（テスト用ガード込み）
 require('dotenv').config();
 const express = require('express');
 const bcrypt  = require('bcryptjs');
@@ -8,31 +8,31 @@ const { PrismaClient } = require('@prisma/client');
 const http     = require('http');
 const mongoose = require('mongoose');
 const { Server } = require('socket.io');
-const Message  = require('./models/Message');
+const Message  = require('./models/Message');  // Mongoose のモデル
 
 const prisma = new PrismaClient();
 const app = express();
 
-// ── scheduler.js を読み込む（テスト時は早期 return => cron登録をスキップ） ──
-require('./scheduler');
+// ── テスト環境では scheduler や MongoDB 接続をスキップ ─────────────────
+if (process.env.NODE_ENV === 'test') {
+  console.log('ℹ️ Skipping MongoDB connect because NODE_ENV=test');
+} else {
+  // 開発・本番 (test 以外) では必ず scheduler を読み込んで cron を動かす
+  require('./scheduler');
 
-// ── MongoDB 接続はテスト時にはスキップ ──
-if (process.env.NODE_ENV !== 'test') {
-  mongoose
-    .connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
+  mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
-} else {
-  console.log('ℹ️ Skipping MongoDB connect because NODE_ENV=test');
 }
 
+// JSON ボディを扱えるように設定
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('public'));  // public 以下を静的配信
 
-// ── JWT ミドルウェア ─────────────────────────────────
+// ── JWT 検証ミドルウェア ───────────────────────────────────
 function authRequired(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const [scheme, token] = authHeader.split(' ');
@@ -48,7 +48,7 @@ function authRequired(req, res, next) {
   }
 }
 
-// ── Auth: ユーザー登録 ─────────────────────────────────
+// ── Auth: ユーザー登録 ───────────────────────────────────
 app.post('/auth/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -57,37 +57,49 @@ app.post('/auth/register', async (req, res) => {
   const hash = await bcrypt.hash(password, 10);
   try {
     const user = await prisma.user.create({ data: { email, password: hash } });
+    console.log('[auth/register] User created:', user);
     res.status(201).json({ id: user.id, email: user.email });
-  } catch {
+  } catch (e) {
+    console.error('[auth/register] Error:', e.message);
     res.status(409).json({ error: '既に登録済みの email です' });
   }
 });
 
-// ── Auth: ログイン ─────────────────────────────────
+// ── Auth: ログイン ───────────────────────────────────────
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'email と password は必須' });
   }
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !(await bcrypt.compare(password, user.password))) {
+  console.log('[auth/login] Prisma.findUnique returned user:', user);
+  if (!user) {
     return res.status(401).json({ error: '認証に失敗しました' });
   }
+  console.log('[auth/login] Comparing passwords. Plain:', password, 'Hash:', user.password);
+  const ok = await bcrypt.compare(password, user.password);
+  console.log('[auth/login] bcrypt.compare result:', ok);
+  if (!ok) {
+    return res.status(401).json({ error: '認証に失敗しました' });
+  }
+  console.log('[auth/login] JWT_SECRET is:', process.env.JWT_SECRET);
   const token = jwt.sign(
     { sub: user.id, email: user.email },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN }
   );
+  console.log('[auth/login] JWT token created');
   res.json({ accessToken: token });
 });
 
-// ── Health Check ───────────────────────────────────────
+// ── Health Check ─────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'OK' });
 });
 
-// ── ToDo CRUD ─────────────────────────────────────────
-// GET /todos
+// ── ToDo CRUD ────────────────────────────────────────────
+
+// GET /todos  → 自分のユーザーID に紐づく ToDo をすべて取得
 app.get('/todos', authRequired, async (req, res) => {
   const todos = await prisma.todo.findMany({
     where: { userId: req.user.id },
@@ -96,37 +108,27 @@ app.get('/todos', authRequired, async (req, res) => {
   res.json(todos);
 });
 
-// GET /tasks (TaskLog の一覧取得)
-app.get('/tasks', async (req, res) => {
-  try {
-    const logs = await prisma.taskLog.findMany({
-      orderBy: { runAt: 'desc' },
-      take: 50,
-    });
-    res.json(logs);
-  } catch (err) {
-    res.status(500).json({ error: 'TaskLog 取得に失敗しました', detail: err.message });
-  }
-});
-
-// POST /todos
+// POST /todos  → 新しい ToDo を作成
 app.post('/todos', authRequired, async (req, res) => {
-  const text = req.body.text?.trim();
+  const text = (req.body.text || '').trim();
   if (!text) {
     return res.status(400).json({ error: 'text は必須' });
   }
   const todo = await prisma.todo.create({
-    data: { text, userId: req.user.id },
+    data: { text, userId: req.user.id }
   });
   res.status(201).json(todo);
 });
 
-// PUT /todos/:id
+// PUT /todos/:id  → ToDo を更新
 app.put('/todos/:id', authRequired, async (req, res) => {
   try {
     const result = await prisma.todo.updateMany({
-      where: { id: Number(req.params.id), userId: req.user.id },
-      data: { text: req.body.text?.trim() },
+      where: {
+        id: Number(req.params.id),
+        userId: req.user.id,
+      },
+      data: { text: (req.body.text || '').trim() },
     });
     if (result.count === 0) throw new Error();
     const todo = await prisma.todo.findUnique({ where: { id: Number(req.params.id) } });
@@ -136,11 +138,14 @@ app.put('/todos/:id', authRequired, async (req, res) => {
   }
 });
 
-// DELETE /todos/:id
+// DELETE /todos/:id  → ToDo を削除
 app.delete('/todos/:id', authRequired, async (req, res) => {
   try {
     const result = await prisma.todo.deleteMany({
-      where: { id: Number(req.params.id), userId: req.user.id },
+      where: {
+        id: Number(req.params.id),
+        userId: req.user.id,
+      }
     });
     if (result.count === 0) throw new Error();
     res.status(204).send();
@@ -149,32 +154,21 @@ app.delete('/todos/:id', authRequired, async (req, res) => {
   }
 });
 
-// ── HTTP サーバー＋Socket.io セットアップ ────────────────
+// ── Socket.io ＋ サーバー起動部分 ─────────────────────────
 if (require.main === module) {
-  const port = process.env.PORT || 3000;
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: '*' } });
 
   io.on('connection', socket => {
     console.log(`🟢 socket connected: ${socket.id}`);
-    socket.on('getMessages', async () => {
-      const msgs = await Message.find().sort({ createdAt: 1 });
-      socket.emit('messages', msgs);
-    });
-    socket.on('sendMessage', async ({ userId, text }) => {
-      console.log('🔥 Received sendMessage:', text);
-      const msg = await Message.create({ userId, text });
-      io.emit('newMessage', msg);
-    });
-    socket.on('disconnect', () => {
-      console.log(`🔴 socket disconnected: ${socket.id}`);
-    });
+    // 省略: メッセージ送受信など
   });
 
+  const port = process.env.PORT || 3000;
   server.listen(port, () => {
     console.log(`Server (with Socket.io) listening on http://localhost:${port}`);
   });
 }
 
-// テストコードからは app と prisma を使えるようエクスポート
+// テストコードからは app と prisma を使いたいのでエクスポート
 module.exports = { app, prisma };

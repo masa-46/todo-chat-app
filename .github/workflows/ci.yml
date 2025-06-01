@@ -28,9 +28,9 @@ jobs:
     # ここで DATABASE_URL を直接書く。ホスト名とポート、認証情報は services:postgres と揃える
     env:
       DATABASE_URL: "postgresql://todo_user:todo_pass@localhost:5432/todo_dev"
-      JWT_SECRET: ${{ secrets.JWT_SECRET }}
-      JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
-      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      JWT_SECRET: "${{ secrets.JWT_SECRET }}"
+      JWT_EXPIRES_IN: "${{ secrets.JWT_EXPIRES_IN }}"
+      MONGODB_URI: "${{ secrets.MONGODB_URI }}"
 
     strategy:
       matrix:
