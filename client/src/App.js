@@ -27,7 +27,6 @@ export default function App() {
         return;
       }
       const body = await res.json();
-      setAccessToken(body.accessToken);
       // JWT をデコードして userId を取り出す簡易版（payload.sub として返ってくる想定）
       const payload = JSON.parse(atob(body.accessToken.split('.')[1]));
       setUserId(payload.sub);
