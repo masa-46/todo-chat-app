@@ -7,7 +7,6 @@ import Chat from './components/Chat';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [accessToken, setAccessToken] = useState('');
   const [userId, setUserId] = useState(null);
 
   const [email, setEmail] = useState('');
