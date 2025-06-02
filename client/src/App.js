@@ -1,148 +1,75 @@
 // client/src/App.js
-import React, { useEffect, useState } from 'react';
-import './App.css';
-import { Login } from './Login';
+import React, { useState } from 'react';
+import Chat from './components/Chat';
 
-function App() {
-  const [todos,   setTodos]   = useState([]);
-  const [error,   setError]   = useState(null);
-  const [isAuth,  setIsAuth]  = useState(false);
-  const [newText, setNewText] = useState('');
+// 必要であれば react-router-dom などでルーティングしてもよいのですが、最小構成として
+// ログインフォーム→成功したらチャットに切り替える、という遷移を実装します。
 
-  // ── ① ログイン完了時に onLogin() で呼ばれる
-  const handleLogin = () => {
-    setIsAuth(true);
-  };
+export default function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
+  const [userId, setUserId] = useState(null);
 
-  // ── ② 認証済みなら ToDo を取ってくる
-  useEffect(() => {
-    if (!isAuth) return;
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-    const token = localStorage.getItem('token') || '';
-    fetch('/todos', {
-      headers: {
-        // ← ここで Authorization ヘッダにトークンを載せる
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => setTodos(data))
-      .catch(err => {
-        console.error(err);
-        setError(err.message);
+  // 簡易ログイン処理（/auth/login へリクエストを投げる）
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
-  }, [isAuth]);
-  const handleAdd = () => {
-    const token = localStorage.getItem('token') || '';
-    fetch('/todos', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ text: newText.trim() }),
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(created => {
-        setTodos(prev => [...prev, created]);
-        setNewText('');  // 入力欄をクリア
-      })
-      .catch(err => {
-        console.error(err);
-        setError(err.message);
-      });
-  };
-  // App.js の中に追記
-const handleDelete = id => {
-  const token = localStorage.getItem('token') || '';
-  fetch(`/todos/${id}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-    .then(res => {
-      if (res.status !== 204) throw new Error(`HTTP ${res.status}`);
-      // 削除成功 → ローカル state から除外
-      setTodos(prev => prev.filter(t => t.id !== id));
-    })
-    .catch(err => {
+      if (!res.ok) {
+        alert('ログイン失敗: ' + res.status);
+        return;
+      }
+      const body = await res.json();
+      setAccessToken(body.accessToken);
+      // JWT をデコードして userId を取り出す簡易版（payload.sub として返ってくる想定）
+      const payload = JSON.parse(atob(body.accessToken.split('.')[1]));
+      setUserId(payload.sub);
+      setLoggedIn(true);
+    } catch (err) {
       console.error(err);
-      setError(err.message);
-    });
-};
+      alert('エラーが発生しました');
+    }
+  };
 
-const handleEdit = async id => {
-  const newText = window.prompt('更新後のタスクを入力してください');
-  if (!newText || !newText.trim()) return;
-
-  const token = localStorage.getItem('token') || '';
-  try {
-    const res = await fetch(`/todos/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ text: newText.trim() }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const updated = await res.json();
-    setTodos(prev =>
-      prev.map(t => (t.id === id ? updated : t))
-    );
-  } catch (err) {
-    console.error(err);
-    setError(err.message);
-  }
-};
-
-  // ── 認証前はログインフォーム、認証後は ToDo を表示
-  if (!isAuth) {
-    return <Login onLogin={handleLogin} />;
-  }
-
-  return (
-    <div className="App">
-      <h1>ToDo リスト</h1>
-      {error && <p style={{ color: 'red' }}>エラー: {error}</p>}
-      {/* ② 入力フォーム */} 
-      <div style={{ marginBottom: '1rem' }}>
-        <input
-          type="text"
-          value={newText}
-          onChange={e => setNewText(e.target.value)}
-          placeholder="新しいタスクを入力"
-        />
-        <button onClick={handleAdd} disabled={!newText.trim()}>
-          追加
-        </button>
+  if (!loggedIn) {
+    // ログイン前の画面
+    return (
+      <div style={{ maxWidth: '400px', margin: '100px auto' }}>
+        <h2>ログイン</h2>
+        <form onSubmit={handleLogin}>
+          <div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email"
+              style={{ width: '100%', padding: '8px' }}
+            />
+          </div>
+          <div style={{ marginTop: '8px' }}>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="password"
+              style={{ width: '100%', padding: '8px' }}
+            />
+          </div>
+          <button type="submit" style={{ marginTop: '12px', padding: '8px 16px' }}>
+            ログイン
+          </button>
+        </form>
       </div>
-      
-      <ul>
-        {todos.length === 0
-          ? <li>データがありません</li>
-          : todos.map(todo => (
-<li key={todo.id} style={{ marginBottom: '0.5rem' }}>
-                {todo.text} (ID: {todo.id})
-                {' '}
-                <button onClick={() => handleEdit(todo.id)} style={{ marginLeft: 8 }}>
-                  編集
-                </button>
-                <button onClick={() => handleDelete(todo.id)} style={{ marginLeft: 4 }}>
-                  削除
-                </button>
-              </li>
-            ))}
-      </ul>
-    </div>
-  );
-}
+    );
+  }
 
-export default App;
+  // ログイン後にチャット画面を表示
+  return <Chat userId={userId} />;
+}

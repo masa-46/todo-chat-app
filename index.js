@@ -153,16 +153,52 @@ app.delete('/todos/:id', authRequired, async (req, res) => {
     res.status(404).json({ error: '操作対象がありません' });
   }
 });
+// ── TaskLog 取得 (/tasks 旧・/jobs 新) ─────────────────────────
+const fetchTaskLogs = async (_req, res) => {
+  try {
+    const logs = await prisma.taskLog.findMany({
+      orderBy: { runAt: 'desc' },
+      take: 50,                // 直近 50 件だけ
+    });
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({
+      error: 'TaskLog 取得に失敗しました',
+      detail: err.message,
+    });
+  }
+};
 
+// 既存互換（もし前から使っていれば壊さない）
+app.get('/tasks', fetchTaskLogs);
+// Day11 の新要件
+app.get('/jobs',  fetchTaskLogs);
 // ── Socket.io ＋ サーバー起動部分 ─────────────────────────
 if (require.main === module) {
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: '*' } });
 
   io.on('connection', socket => {
-    console.log(`🟢 socket connected: ${socket.id}`);
-    // 省略: メッセージ送受信など
+  console.log(`🟢 socket connected: ${socket.id}`);
+
+  // ① 過去メッセージを要求されたら → 配列で返す
+  socket.on('getMessages', async () => {
+    const msgs = await Message.find().sort({ createdAt: 1 });
+    socket.emit('messages', msgs);          // この接続だけへ返送
   });
+
+  // ② 新しいメッセージを受け取ったら → MongoDB 保存して全員へ配信
+  socket.on('sendMessage', async ({ userId, text }) => {
+    if (!text?.trim()) return;              // 空文字なら無視
+    const msg = await Message.create({ userId, text });
+    io.emit('newMessage', msg);             // 参加者全員へブロードキャスト
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`🔴 socket disconnected: ${socket.id}`);
+  });
+});
+
 
   const port = process.env.PORT || 3000;
   server.listen(port, () => {
