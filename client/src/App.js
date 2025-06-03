@@ -1,9 +1,8 @@
 // client/src/App.js
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import Chat from './components/Chat';
-
-// 必要であれば react-router-dom などでルーティングしてもよいのですが、最小構成として
-// ログインフォーム→成功したらチャットに切り替える、という遷移を実装します。
+import Monitor from './components/Monitor';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -26,7 +25,7 @@ export default function App() {
         return;
       }
       const body = await res.json();
-      // JWT をデコードして userId を取り出す簡易版（payload.sub として返ってくる想定）
+      // JWT をデコードして userId を取り出す（payload.sub として返ってくる想定）
       const payload = JSON.parse(atob(body.accessToken.split('.')[1]));
       setUserId(payload.sub);
       setLoggedIn(true);
@@ -68,6 +67,18 @@ export default function App() {
     );
   }
 
-  // ログイン後にチャット画面を表示
-  return <Chat userId={userId} />;
+  // ログイン後のルーティング画面
+  return (
+    <BrowserRouter>
+      <nav style={{ margin: '1rem auto', textAlign: 'center' }}>
+        <Link to="/chat" style={{ marginRight: '1rem' }}>チャット</Link>
+        <Link to="/monitor">ジョブログ</Link>
+      </nav>
+      <Routes>
+        <Route path="/chat" element={<Chat userId={userId} />} />
+        <Route path="/monitor" element={<Monitor />} />
+        <Route path="*" element={<Chat userId={userId} />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
