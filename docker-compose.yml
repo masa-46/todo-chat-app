@@ -1,25 +1,59 @@
-version: "3.8"
-
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: todo_user
       POSTGRES_PASSWORD: todo_pass
       POSTGRES_DB: todo_dev
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
 
   mongo:
-    image: mongo:6
-    container_name: todo-mongo
+    image: mongo:6.0
     ports:
       - "27017:27017"
     volumes:
-      - mongo-data:/data/db
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: todo-backend
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: "postgresql://todo_user:todo_pass@postgres:5432/todo_dev"
+      JWT_SECRET: "SOME-V3ryL0ngR4nd0m_string_123456"
+      JWT_EXPIRES_IN: "1h"
+      MONGODB_URI: "mongodb://mongo:27017/todo-chat-app"
+      NODE_ENV: "production"
+    depends_on:
+      - postgres
+      - mongo
+    volumes:
+      - .:/app
+    networks:
+      - todo-network
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.frontend
+    container_name: todo-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - todo-network
 
 volumes:
-  postgres-data:
-  mongo-data:
+  postgres_data:
+  mongo_data:
+
+networks:
+  todo-network:
+    driver: bridge
