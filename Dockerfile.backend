@@ -1,0 +1,28 @@
+# Dockerfile.backend
+#
+# ← node:18-alpine をベースに、Express/Prisma/MongoDB 用バックエンドを動かす
+
+## 1. ベースイメージ
+FROM node:18-alpine
+
+## 2. 作業フォルダを /app に設定
+WORKDIR /app
+
+## 3. package.json と package-lock.json を先にコピーし、依存をインストール
+COPY package*.json ./
+RUN npm ci
+
+## 4. ソースコード一式をコピー
+COPY . .
+
+## 5. Prisma Client を生成
+RUN npx prisma generate
+
+## 6. デフォルトの環境変数ファイルを .env.docker で置き換える場合はここでコピー
+# COPY .env.docker .env
+
+## 7. アプリ起動
+CMD ["node", "index.js"]
+
+## 8. コンテナ内でリッスンするポート
+EXPOSE 3000
