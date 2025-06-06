@@ -2,18 +2,16 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# 依存ファイルだけ先にコピー
+# 依存ファイルだけコピー
 COPY package*.json ./
-COPY prisma ./prisma          # ← 行を分けると安全
+COPY prisma ./prisma
 
-RUN npm ci --omit=dev         # 本番依存のみインストール
-RUN npx prisma generate       # Client 生成
+RUN npm ci --omit=dev
+RUN npx prisma generate
 
 # 残りのソース
 COPY . .
 
-# Render が自動で渡す $PORT をそのまま使う
-ENV PORT 10000
+ENV PORT 10000           # Render が注入する PORT を受け取る
 
-# 起動時にマイグレーション → アプリ起動
-CMD ["sh","-c","npx prisma migrate deploy && node index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node index.js"]
