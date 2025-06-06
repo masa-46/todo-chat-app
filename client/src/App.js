@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import Chat from './components/Chat';
 import Monitor from './components/Monitor';
+import { BASE } from './api';
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -15,7 +16,7 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('/auth/login', {
+      const res = await fetch(`${BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
