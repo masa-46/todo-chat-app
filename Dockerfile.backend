@@ -1,21 +1,19 @@
-# 1) ベースイメージ
 FROM node:18-alpine
 
-# 2) 作業ディレクトリ
 WORKDIR /app
 
-# 3) package.json と Prisma スキーマだけコピー → 依存インストール
-COPY package*.json prisma ./        # ここで prisma/ ディレクトリを一緒に渡す
-RUN npm ci --omit=dev               # 本番依存だけで OK
+# 依存ファイルだけ先にコピー
+COPY package*.json ./
+COPY prisma ./prisma          # ← 行を分けると安全
 
-# 4) Prisma Client 生成（依存インストール後）
-RUN npx prisma generate
+RUN npm ci --omit=dev         # 本番依存のみインストール
+RUN npx prisma generate       # Client 生成
 
-# 5) 残りのアプリソースをコピー
+# 残りのソース
 COPY . .
 
-# 6) Render が割り当てる `$PORT` をそのまま使う
+# Render が自動で渡す $PORT をそのまま使う
 ENV PORT 10000
 
-# 7) 起動時に **マイグレーション + アプリ起動**
+# 起動時にマイグレーション → アプリ起動
 CMD ["sh","-c","npx prisma migrate deploy && node index.js"]
