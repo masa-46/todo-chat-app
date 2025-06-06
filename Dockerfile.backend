@@ -11,6 +11,9 @@ WORKDIR /app
 ## 3. package.json と package-lock.json を先にコピーし、依存をインストール
 COPY package*.json ./
 RUN npm ci
+# --- Prisma generate と migrate をビルド時に実行 ---
+RUN npx prisma generate
+RUN npx prisma migrate deploy
 
 ## 4. ソースコード一式をコピー
 COPY . .
