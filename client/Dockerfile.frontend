@@ -1,0 +1,27 @@
+# Dockerfile.frontend
+#
+# Multi-stage build: React アプリをビルドし、Nginx で配信する
+
+### 1. Build ステージ
+FROM node:18-alpine AS build
+
+WORKDIR /app
+
+# React の依存を先にインストール（キャッシュ効かせる）
+COPY package*.json ./
+RUN npm ci
+
+# React ソースをコピーしてビルド
+COPY . .
+RUN npm run build
+
+### 2. 実行ステージ (Nginx)
+FROM nginx:stable-alpine
+
+# ビルド成果物を Nginx の公開ディレクトリに配置
+COPY --from=build /app/build /usr/share/nginx/html
+
+# (必要であれば Nginx の設定をカスタマイズするが、今回はデフォルトで OK)
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
