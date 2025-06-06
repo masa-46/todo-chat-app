@@ -202,7 +202,7 @@ if (require.main === module) {
 
   const port = process.env.PORT || 3000;
   server.listen(port, () => {
-    console.log(`Server (with Socket.io) listening on http://localhost:${port}`);
+    console.log(`Server (with Socket.io) listening on port ${port}`);
   });
 }
 
