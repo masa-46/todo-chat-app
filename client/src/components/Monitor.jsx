@@ -1,5 +1,6 @@
 // client/src/components/Monitor.jsx
 import { useEffect, useState } from 'react';
+import { BASE } from '../api';
 
 export default function Monitor() {
   const [logs, setLogs] = useState([]);
@@ -7,7 +8,7 @@ export default function Monitor() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch('/jobs')
+    fetch(`${BASE}/jobs`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
