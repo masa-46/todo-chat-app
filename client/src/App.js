@@ -29,6 +29,7 @@ export default function App() {
       });
       if (!res.ok) throw new Error(res.status);
       const body = await res.json();
+      localStorage.setItem('accessToken', body.accessToken);
       const payload = JSON.parse(atob(body.accessToken.split('.')[1]));
       setUserId(payload.sub);
       setLoggedIn(true);
