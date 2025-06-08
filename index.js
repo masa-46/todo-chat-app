@@ -191,20 +191,27 @@ if (require.main === module) {
   const io = new Server(server, { cors: { origin: '*' } });
 
   io.on('connection', socket => {
+    socket.on('join', ({ userId }) => {
+      socket.join(`user-${userId}`);
+    });
   console.log(`🟢 socket connected: ${socket.id}`);
 
   // ① 過去メッセージを要求されたら → 配列で返す
-  socket.on('getMessages', async () => {
-    const msgs = await Message.find().sort({ createdAt: 1 });
-    socket.emit('messages', msgs);          // この接続だけへ返送
-  });
+   socket.on('getMessages', async ({ userId }) => {
+     const msgs = await Message
+       .find({ userId })
+       .sort({ createdAt: 1 });
+     socket.to(`user-${userId}`).emit('messages', msgs);
+     socket.emit('messages', msgs); // 自分にも返す
+   });
 
   // ② 新しいメッセージを受け取ったら → MongoDB 保存して全員へ配信
   socket.on('sendMessage', async ({ userId, text }) => {
-    if (!text?.trim()) return;              // 空文字なら無視
-    const msg = await Message.create({ userId, text });
-    io.emit('newMessage', msg);             // 参加者全員へブロードキャスト
-  });
+     if (!text?.trim()) return;
+     const msg = await Message.create({ userId, text });
+     // 自分の room だけにブロードキャスト
+     io.to(`user-${userId}`).emit('newMessage', msg);
+   });
 
   socket.on('disconnect', () => {
     console.log(`🔴 socket disconnected: ${socket.id}`);

@@ -12,8 +12,10 @@ export default function Chat({ userId }) {
   const messageListRef = useRef(null);
 
   useEffect(() => {
-    // 初期表示時にこれまでのメッセージをサーバーにリクエスト
-    socket.emit('getMessages');
+    // ① まず自分の userId を join
+    socket.emit('join', { userId });
+    // ② その後、自分用の過去メッセージを取得
+    socket.emit('getMessages', { userId });
 
     // サーバーから過去メッセージ一覧が届いたとき
     socket.on('messages', (msgs) => {
