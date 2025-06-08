@@ -14,11 +14,20 @@ const Message  = require('./models/Message');  // Mongoose のモデル
 const prisma = new PrismaClient();
 const app = express();
 
-// クレデンシャル付きリクエストを特定オリジンだけ許可
+// ── CORS をルーティング前の一番上で有効化 ──────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN,
-  credentials: true
+  origin: process.env.FRONTEND_ORIGIN,  // Render の Env に設定したフロントの URL
+  credentials: true,                    // Cookie／認証ヘッダーを許可
+  optionsSuccessStatus: 200
 }));
+// プリフライト(OPTIONS)にも同設定を適用
+app.options('*', cors({
+  origin: process.env.FRONTEND_ORIGIN,
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+// ───────────────────────────────────────────────────────────────────
+
  // JSON ボディを扱えるように設定
  app.use(express.json());
 // ── テスト環境では scheduler や MongoDB 接続をスキップ ─────────────────
