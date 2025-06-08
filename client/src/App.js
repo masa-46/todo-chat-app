@@ -7,9 +7,10 @@ import {
   Link,
   Navigate
 } from 'react-router-dom';
-import Chat from './components/Chat';
-import Monitor from './components/Monitor';
-import Register from './components/Register';
+import Chat      from './components/Chat';
+import Monitor   from './components/Monitor';
+import Register  from './components/Register';
+import TodoList  from './components/TodoList';
 import { apiFetch } from './api';
 
 export default function App() {
@@ -77,18 +78,21 @@ export default function App() {
             }
           />
 
-          {/* それ以外はログイン画面へリダイレクト */}
+          {/* 未ログイン時はルートにリダイレクト */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       ) : (
         <>
           <nav style={{ textAlign: 'center', margin: '1rem 0' }}>
-            <Link to="/chat"    style={{ marginRight: '1rem' }}>チャット</Link>
-            <Link to="/monitor">ジョブログ</Link>
+            <Link to="/chat"    style={{ margin: '0 1rem' }}>チャット</Link>
+            <Link to="/monitor" style={{ margin: '0 1rem' }}>ジョブログ</Link>
+            <Link to="/todos"   style={{ margin: '0 1rem' }}>ToDo</Link>
           </nav>
           <Routes>
             <Route path="/chat"    element={<Chat    userId={userId} />} />
             <Route path="/monitor" element={<Monitor />} />
+            <Route path="/todos"   element={<TodoList />} />
+            {/* ログイン後は /chat にリダイレクト */}
             <Route path="*"        element={<Navigate to="/chat" replace />} />
           </Routes>
         </>

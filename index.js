@@ -188,42 +188,34 @@ app.get('/jobs',  fetchTaskLogs);
 // ── Socket.io ＋ サーバー起動部分 ─────────────────────────
 if (require.main === module) {
   const server = http.createServer(app);
-  const io = new Server(server, { cors: { origin: '*' } });
+  const io     = new Server(server, { cors: { origin: '*' } });
 
   io.on('connection', socket => {
-    socket.on('join', ({ userId }) => {
-      socket.join(`user-${userId}`);
+    // 全員向けの過去メッセージ取得
+    socket.on('getMessages', async () => {
+      const msgs = await Message.find().sort({ createdAt: 1 });
+      socket.emit('messages', msgs);
     });
-  console.log(`🟢 socket connected: ${socket.id}`);
 
-  // ① 過去メッセージを要求されたら → 配列で返す
-   socket.on('getMessages', async ({ userId }) => {
-     const msgs = await Message
-       .find({ userId })
-       .sort({ createdAt: 1 });
-     socket.to(`user-${userId}`).emit('messages', msgs);
-     socket.emit('messages', msgs); // 自分にも返す
-   });
+    // 全員向けの新メッセージ配信
+    socket.on('sendMessage', async ({ userId, text }) => {
+      if (!text?.trim()) return;
+      const msg = await Message.create({ userId, text });
+      io.emit('newMessage', msg);
+    });
 
-  // ② 新しいメッセージを受け取ったら → MongoDB 保存して全員へ配信
-  socket.on('sendMessage', async ({ userId, text }) => {
-     if (!text?.trim()) return;
-     const msg = await Message.create({ userId, text });
-     // 自分の room だけにブロードキャスト
-     io.to(`user-${userId}`).emit('newMessage', msg);
-   });
-
-  socket.on('disconnect', () => {
-    console.log(`🔴 socket disconnected: ${socket.id}`);
-  });
-});
-
+    // 切断時ログ
+    socket.on('disconnect', () => {
+      console.log(`🔴 socket disconnected: ${socket.id}`);
+    });
+  });  // ← ここで connection のコールバックを閉じる
 
   const port = process.env.PORT || 3000;
   server.listen(port, () => {
     console.log(`Server (with Socket.io) listening on port ${port}`);
   });
 }
+
 
 // テストコードからは app と prisma を使いたいのでエクスポート
 module.exports = { app, prisma };

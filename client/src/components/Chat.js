@@ -12,10 +12,7 @@ export default function Chat({ userId }) {
   const messageListRef = useRef(null);
 
   useEffect(() => {
-    // ① まず自分の userId を join
-    socket.emit('join', { userId });
-    // ② その後、自分用の過去メッセージを取得
-    socket.emit('getMessages', { userId });
+   socket.emit('getMessages');
 
     // サーバーから過去メッセージ一覧が届いたとき
     socket.on('messages', (msgs) => {
@@ -47,7 +44,7 @@ export default function Chat({ userId }) {
       socket.off('messages');
       socket.off('newMessage');
     };
-  }, [userId]);
+  }, []);
 
   // フォームを送信したとき（Enter キー or 送信ボタン）
   const handleSubmit = (e) => {
