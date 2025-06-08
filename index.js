@@ -14,7 +14,13 @@ const Message  = require('./models/Message');  // Mongoose のモデル
 const prisma = new PrismaClient();
 const app = express();
 
-app.use(cors());
+// クレデンシャル付きリクエストを特定オリジンだけ許可
+app.use(cors({
+  origin: process.env.FRONTEND_ORIGIN,
+  credentials: true
+}));
+ // JSON ボディを扱えるように設定
+ app.use(express.json());
 // ── テスト環境では scheduler や MongoDB 接続をスキップ ─────────────────
 if (process.env.NODE_ENV === 'test') {
   console.log('ℹ️ Skipping MongoDB connect because NODE_ENV=test');
