@@ -3,9 +3,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { BASE } from '../api'; 
 
-// サーバー側（Express+Socket.io）がデフォルトで http://localhost:3000 に立っているなら以下
-// create-react-app でポートを 3001 などにしていても、socket.io-client の接続先はバックエンドの 3000 を指す
-const socket = io(BASE);
+// BASE を使って、WebSocket 固定で接続
+const socket = io(BASE, { transports: ['websocket'] });
 
 export default function Chat({ userId }) {
   const [messages, setMessages] = useState([]);      // メッセージ一覧
