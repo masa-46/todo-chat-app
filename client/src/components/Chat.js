@@ -47,7 +47,7 @@ export default function Chat({ userId }) {
       socket.off('messages');
       socket.off('newMessage');
     };
-  }, []);
+  }, [userId]);
 
   // フォームを送信したとき（Enter キー or 送信ボタン）
   const handleSubmit = (e) => {
