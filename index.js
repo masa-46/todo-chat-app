@@ -1,6 +1,7 @@
 // index.js ── Prisma + JWT 版バックエンド（テスト用ガード込み）
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
@@ -13,6 +14,7 @@ const Message  = require('./models/Message');  // Mongoose のモデル
 const prisma = new PrismaClient();
 const app = express();
 
+app.use(cors());
 // ── テスト環境では scheduler や MongoDB 接続をスキップ ─────────────────
 if (process.env.NODE_ENV === 'test') {
   console.log('ℹ️ Skipping MongoDB connect because NODE_ENV=test');
