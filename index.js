@@ -1,7 +1,11 @@
 // index.js ── Prisma + JWT 版バックエンド（テスト用ガード込み）
-require('dotenv').config();
+require('dotenv-safe').config();
 const express = require('express');
 const helmet  = require('helmet');
+const rateLimit       = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
+const cookieParser    = require('cookie-parser');
+const csurf           = require('csurf');
 const cors = require('cors');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
@@ -16,6 +20,27 @@ const prisma = new PrismaClient();
 const app = express();
 //  XSS など各種脅威から守る HTTP ヘッダーを追加
 app.use(helmet());
+// レートリミット (ログインブルートフォース対策)
+ const loginLimiter = rateLimit({
+   windowMs: 15 * 60 * 1000, // 15分間
+   max:      10,             // 最大10リクエスト
+   message:  { error: 'ログイン試行回数が多すぎます。15分後にお試しください。' }
+ });
+
+ // ③ CSRF 保護
+ app.use(cookieParser());
+ app.use(csurf({
+   cookie: {
+     httpOnly: true,
+     sameSite: 'strict',
+     secure: process.env.NODE_ENV === 'production'
+   }
+ }));
+ // トークン取得用エンドポイント
+ app.get('/csrf-token', (req, res) => {
+   res.json({ csrfToken: req.csrfToken() });
+ });
+ // ────────────────────────────────────────────────────────
 // CORS 設定（テスト環境ではスキップ）
 if (process.env.NODE_ENV !== 'test') {
   app.use(cors({
@@ -63,7 +88,18 @@ function authRequired(req, res, next) {
 }
 
 // ── Auth: ユーザー登録 ───────────────────────────────────
-app.post('/auth/register', async (req, res) => {
+app.post(
+   '/auth/register',
+   loginLimiter,
+   [
+     body('email').isEmail().normalizeEmail(),
+     body('password').isLength({ min: 8 })
+   ],
+   async (req, res) => {
+     const errors = validationResult(req);
+     if (!errors.isEmpty()) {
+       return res.status(400).json({ errors: errors.array() });
+     }
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'email と password は必須' });
@@ -80,7 +116,18 @@ app.post('/auth/register', async (req, res) => {
 });
 
 // ── Auth: ログイン ───────────────────────────────────────
-app.post('/auth/login', async (req, res) => {
+app.post(
+   '/auth/login',
+   loginLimiter,
+   [
+     body('email').isEmail().normalizeEmail(),
+     body('password').notEmpty()
+   ],
+   async (req, res) => {
+     const errors = validationResult(req);
+     if (!errors.isEmpty()) {
+       return res.status(400).json({ errors: errors.array() });
+     }
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'email と password は必須' });
@@ -122,17 +169,35 @@ app.get('/todos', authRequired, async (req, res) => {
   res.json(todos);
 });
 
-// POST /todos  → 新しい ToDo を作成
-app.post('/todos', authRequired, async (req, res) => {
-  const text = (req.body.text || '').trim();
-  if (!text) {
-    return res.status(400).json({ error: 'text は必須' });
+/// POST /todos  → 新しい ToDo を作成 (バリデーション付き)
+app.post(
+  '/todos',
+  authRequired,
+  // 入力チェック＆サニタイズ
+  [ body('text').trim().notEmpty().escape() ],
+  async (req, res) => {
+    // バリデーション結果を確認
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      // 400 Bad Request + エラー配列
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    // サニタイズ済みの text
+    const text = req.body.text;
+
+    try {
+      const todo = await prisma.todo.create({
+        data: { text, userId: req.user.id }
+      });
+      res.status(201).json(todo);
+    } catch (e) {
+      console.error('[POST /todos] Error:', e);
+      res.status(500).json({ error: 'ToDo の作成に失敗しました' });
+    }
   }
-  const todo = await prisma.todo.create({
-    data: { text, userId: req.user.id }
-  });
-  res.status(201).json(todo);
-});
+);
+
 
 // PUT /todos/:id  → ToDo を更新
 app.put('/todos/:id', authRequired, async (req, res) => {
