@@ -33,19 +33,21 @@ app.use(helmet());
    message:  { error: 'ログイン試行回数が多すぎます。15分後にお試しください。' }
  });
 
- // ③ CSRF 保護
- app.use(cookieParser());
- app.use(csurf({
-   cookie: {
-     httpOnly: true,
-     sameSite: 'strict',
-     secure: process.env.NODE_ENV === 'production'
-   }
- }));
- // トークン取得用エンドポイント
- app.get('/csrf-token', (req, res) => {
-   res.json({ csrfToken: req.csrfToken() });
- });
+ // ③ CSRF 保護 (テスト時はスキップ)
+if (process.env.NODE_ENV !== 'test') {
+  app.use(cookieParser());
+  app.use(csurf({
+    cookie: {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production'
+    }
+  }));
+  // トークン取得用エンドポイント
+  app.get('/csrf-token', (req, res) => {
+    res.json({ csrfToken: req.csrfToken() });
+  });
+}
  // ────────────────────────────────────────────────────────
 // CORS 設定（テスト環境ではスキップ）
 if (process.env.NODE_ENV !== 'test') {
