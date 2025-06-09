@@ -11,7 +11,7 @@ if (process.env.NODE_ENV === 'test') {
 const express   = require('express');
 const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 const cookieParser = require('cookie-parser');
 const csurf     = require('csurf');
 const cors      = require('cors');
@@ -37,11 +37,12 @@ const loginLimiter = rateLimit({
   message:  { error: 'ログイン試行回数が多すぎます。15 分後にお試しください。' }
 });
 
- // ③ 本番かつ FRONTEND_ORIGIN があるときだけ CORS と CSRF を有効化
- const isProdSecure =
-   process.env.NODE_ENV === 'production' &&
-   typeof process.env.FRONTEND_ORIGIN === 'string';
- if (isProdSecure) {
+// ③ 本番かつ FRONTEND_ORIGIN があるときだけ CORS と CSRF を有効化
+const isProdSecure =
+  process.env.NODE_ENV === 'production' &&
+  typeof process.env.FRONTEND_ORIGIN === 'string';
+
+if (isProdSecure) {
   // CORS：本番フロントからの credentialed リクエストを許可
   app.use(cors({
     origin: process.env.FRONTEND_ORIGIN,
@@ -58,6 +59,7 @@ const loginLimiter = rateLimit({
       secure: true
     }
   }));
+
   // トークン取得用エンドポイント
   app.get('/csrf-token', (req, res) => {
     res.json({ csrfToken: req.csrfToken() });
@@ -73,6 +75,7 @@ if (process.env.NODE_ENV === 'test') {
 } else {
   // 開発・本番 (test 以外) では必ず scheduler を読み込んで cron を動かす
   require('./scheduler');
+
   mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -196,39 +199,65 @@ app.post(
   }
 );
 
-// PUT /todos/:id  → ToDo を更新
-app.put('/todos/:id', authRequired, async (req, res) => {
-  try {
-    const result = await prisma.todo.updateMany({
-      where: {
-        id: Number(req.params.id),
-        userId: req.user.id,
-      },
-      data: { text: (req.body.text || '').trim() },
-    });
-    if (result.count === 0) throw new Error();
-    const todo = await prisma.todo.findUnique({ where: { id: Number(req.params.id) } });
-    res.json(todo);
-  } catch {
-    res.status(404).json({ error: '操作対象がありません' });
-  }
-});
+// PUT /todos/:id  → ToDo を更新 (パラメータ＆本文検証付き)
+app.put(
+  '/todos/:id',
+  authRequired,
+  [
+    param('id').isInt().toInt(),
+    body('text').trim().notEmpty().escape(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
-// DELETE /todos/:id  → ToDo を削除
-app.delete('/todos/:id', authRequired, async (req, res) => {
-  try {
-    const result = await prisma.todo.deleteMany({
-      where: {
-        id: Number(req.params.id),
-        userId: req.user.id,
+    try {
+      const { id } = req.params;
+      const { text } = req.body;
+      const result = await prisma.todo.updateMany({
+        where: { id, userId: req.user.id },
+        data: { text },
+      });
+      if (result.count === 0) {
+        return res.status(404).json({ error: '操作対象がありません' });
       }
-    });
-    if (result.count === 0) throw new Error();
-    res.status(204).send();
-  } catch {
-    res.status(404).json({ error: '操作対象がありません' });
+      const todo = await prisma.todo.findUnique({ where: { id } });
+      res.json(todo);
+    } catch (e) {
+      console.error('[PUT /todos/:id] Error:', e);
+      res.status(500).json({ error: 'ToDo 更新に失敗しました' });
+    }
   }
-});
+);
+
+// DELETE /todos/:id  → ToDo を削除 (パラメータ検証付き)
+app.delete(
+  '/todos/:id',
+  authRequired,
+  [ param('id').isInt().toInt() ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+      const { id } = req.params;
+      const result = await prisma.todo.deleteMany({
+        where: { id, userId: req.user.id },
+      });
+      if (result.count === 0) {
+        return res.status(404).json({ error: '操作対象がありません' });
+      }
+      res.status(204).send();
+    } catch (e) {
+      console.error('[DELETE /todos/:id] Error:', e);
+      res.status(500).json({ error: 'ToDo 削除に失敗しました' });
+    }
+  }
+);  // ← ここにセミコロン
 
 // ── TaskLog 取得 (/tasks 旧・/jobs 新) ─────────────────────────
 const fetchTaskLogs = async (_req, res) => {
