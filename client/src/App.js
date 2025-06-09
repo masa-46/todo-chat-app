@@ -1,5 +1,5 @@
 // client/src/App.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -18,6 +18,16 @@ export default function App() {
   const [userId,   setUserId]   = useState(null);
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
+
+  useEffect(() => {
+  const t = localStorage.getItem('accessToken');
+  if (t) {
+    const payload = JSON.parse(atob(t.split('.')[1]));
+    setUserId(payload.sub);
+    setLoggedIn(true);
+  }
+}, []);
+
 
   const handleLogin = async (e) => {
     e.preventDefault();

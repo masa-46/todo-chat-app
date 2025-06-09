@@ -1,5 +1,9 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# 実際の環境変数ファイルをすべて無視
+.env
+.env.*
+
 # dependencies
 /node_modules
 /.pnp

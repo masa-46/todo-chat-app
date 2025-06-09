@@ -8,11 +8,15 @@ let csrfToken = null;
 
 /**
  * fetchCSRFToken()
- * ─────────────────────────────────────────────────────────────────
- * CSRF トークンをバックエンドから一度だけ取得してキャッシュします。
+ * - 本番環境でかつ環境変数 REACT_APP_API_BASE が設定されているときだけ
+ *   一度だけ /csrf-token を叩いてキャッシュする
  */
 async function fetchCSRFToken() {
-  if (!csrfToken) {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.REACT_APP_API_BASE &&
+    !csrfToken
+  ) {
     const res = await fetch(`${BASE}/csrf-token`, {
       credentials: 'include',
     });
@@ -27,13 +31,12 @@ async function fetchCSRFToken() {
 
 /**
  * apiFetch(path, opts)
- * ─────────────────────────────────────────────────────────────────
  * - path: `/todos` や `/auth/login` のようなルート
  * - opts: fetch のオプション (method, headers, body など)
  *
- * ・JWT を localStorage から取り出して Authorization ヘッダーに自動で追加  
+ * ・JWT を localStorage から取得して Authorization ヘッダーに追加  
  * ・Cookie 送信のために credentials: 'include'  
- * ・POST/PUT/DELETE のときは CSRF トークンを取得して XSRF-TOKEN ヘッダーに付与  
+ * ・POST/PUT/DELETE のときは必要に応じて CSRF トークンを付与  
  */
 export async function apiFetch(path, opts = {}) {
   const token = localStorage.getItem('accessToken');
@@ -41,10 +44,12 @@ export async function apiFetch(path, opts = {}) {
   // ミューテート系なら CSRF トークンを付与
   if (opts.method && /^(POST|PUT|DELETE)$/i.test(opts.method)) {
     const csrf = await fetchCSRFToken();
-    opts.headers = {
-      ...opts.headers,
-      'XSRF-TOKEN': csrf,
-    };
+    if (csrf) {
+      opts.headers = {
+        ...opts.headers,
+        'XSRF-TOKEN': csrf,
+      };
+    }
   }
 
   const fetchOptions = {
