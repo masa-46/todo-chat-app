@@ -33,14 +33,22 @@ app.use(helmet());
    message:  { error: 'ログイン試行回数が多すぎます。15分後にお試しください。' }
  });
 
- // ③ CSRF 保護 (テスト時はスキップ)
-if (process.env.NODE_ENV !== 'test') {
+ // ③ 本番環境のみ CORS と CSRF を有効化
+if (process.env.NODE_ENV === 'production') {
+  // CORS：本番フロントからの credentialed リクエストを許可
+  app.use(cors({
+    origin: process.env.FRONTEND_ORIGIN,
+    credentials: true,
+    optionsSuccessStatus: 200
+  }));
+
+  // CSRF 保護
   app.use(cookieParser());
   app.use(csurf({
-    cookie: {
+  cookie: {
       httpOnly: true,
       sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production'
+      secure: true
     }
   }));
   // トークン取得用エンドポイント
@@ -48,16 +56,6 @@ if (process.env.NODE_ENV !== 'test') {
     res.json({ csrfToken: req.csrfToken() });
   });
 }
- // ────────────────────────────────────────────────────────
-// CORS 設定（テスト環境ではスキップ）
-if (process.env.NODE_ENV !== 'test') {
-  app.use(cors({
-    origin: process.env.FRONTEND_ORIGIN,
-    credentials: true,
-    optionsSuccessStatus: 200
-  }));
-}
-
  // JSON ボディを扱えるように設定
  app.use(express.json());
 // ── テスト環境では scheduler や MongoDB 接続をスキップ ─────────────────
