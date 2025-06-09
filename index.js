@@ -1,5 +1,11 @@
 // index.js ── Prisma + JWT 版バックエンド（テスト用ガード込み）
-require('dotenv-safe').config();
+// テスト時は .env がなくてもよいように dotenv を使い、
+// それ以外は dotenv-safe で .env と .env.example の一致を強制チェック
+if (process.env.NODE_ENV === 'test') {
+  require('dotenv').config();
+} else {
+  require('dotenv-safe').config();
+}
 const express = require('express');
 const helmet  = require('helmet');
 const rateLimit       = require('express-rate-limit');
