@@ -1,6 +1,7 @@
 // index.js ── Prisma + JWT 版バックエンド（テスト用ガード込み）
 require('dotenv').config();
 const express = require('express');
+const helmet  = require('helmet');
 const cors = require('cors');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
@@ -13,7 +14,8 @@ const Message  = require('./models/Message');  // Mongoose のモデル
 
 const prisma = new PrismaClient();
 const app = express();
-
+//  XSS など各種脅威から守る HTTP ヘッダーを追加
+app.use(helmet());
 // CORS 設定（テスト環境ではスキップ）
 if (process.env.NODE_ENV !== 'test') {
   app.use(cors({
