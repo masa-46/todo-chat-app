@@ -2,8 +2,7 @@
 
 リアルタイムチャット＋ToDo管理＋ジョブログ監視（リトライ付）を備えた課題アプリ  
 デモ:  
-- **Frontend** : https://todo-chat-app-1.onrender.com  
-- **Backend / API** : https://todo-chat-app.onrender.com
+- **URL** : https://todo-chat-app-1.onrender.com  
 
 ---
 
