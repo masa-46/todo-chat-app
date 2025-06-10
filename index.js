@@ -55,7 +55,7 @@ if (isProdSecure) {
   app.use(csurf({
     cookie: {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
       secure: true
     }
   }));
