@@ -2,8 +2,9 @@
 
 // API のベース URL を環境変数から取得（なければローカル用をフォールバック）
 export const BASE =
-  process.env.REACT_APP_API_BASE || 'http://localhost:3001';
-
+   process.env.NODE_ENV === 'production'
+     ? process.env.REACT_APP_API_BASE
+     : '';
 let csrfToken = null;
 
 /**

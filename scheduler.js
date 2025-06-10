@@ -17,43 +17,57 @@ if (process.env.NODE_ENV === 'test') {
   /**
    * 毎分実行：ToDo の総数をカウントして TaskLog に記録
    */
+  async function countTodosJob() {
+    const jobName = 'count-todos';
+    try {
+      // 全 ToDo の件数を取得
+      const count = await prisma.todo.count();
+
+      // 実行ログを保存
+      await prisma.taskLog.create({
+        data: {
+          name: jobName,
+          status: 'success',
+          message: `Total todos: ${count}`,
+          retryCount: 0,
+        },
+      });
+
+      console.log(`✔️ [${jobName}] success: ${count} todos counted`);
+    } catch (err) {
+      // エラーログを保存
+      await prisma.taskLog.create({
+        data: {
+          name: jobName,
+          status: 'failure',
+          message: err.message,
+          retryCount: 0,
+        },
+      });
+      console.warn(`⚠️ [${jobName}] failed: ${err.message}`);
+    }
+  }
+
+  // cron に名前付き関数を登録
   cron.schedule(
     '* * * * *',
-    async () => {
-      const jobName = 'count-todos';
-      try {
-        // 全 ToDo の件数を取得
-        const count = await prisma.todo.count();
-
-        // 実行ログを保存
-        await prisma.taskLog.create({
-          data: {
-            name: jobName,
-            status: 'success',
-            message: `Total todos: ${count}`,
-            retryCount: 0,
-          },
-        });
-
-        console.log(`✔️ [${jobName}] success: ${count} todos counted`);
-      } catch (err) {
-        // エラーログを保存
-        await prisma.taskLog.create({
-          data: {
-            name: jobName,
-            status: 'failure',
-            message: err.message,
-            retryCount: 0,
-          },
-        });
-        console.warn(`⚠️ [${jobName}] failed: ${err.message}`);
-      }
-    },
+    countTodosJob,
     {
       timezone: 'Asia/Tokyo',
     }
   );
 
-  // PrismaClient をエクスポートしておく（cron登録後も他所から prisma を使えるように）
-  module.exports = prisma;
+  // 名前でジョブを手動実行するヘルパー
+  async function runJobByName(name) {
+    if (name === 'count-todos') {
+      return countTodosJob();
+    }
+    throw new Error(`Unknown job name: ${name}`);
+  }
+
+  // PrismaClient と runJobByName をエクスポート
+  module.exports = {
+    prisma,
+    runJobByName,
+  };
 }

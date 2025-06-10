@@ -98,6 +98,15 @@ export default function App() {
             <Link to="/chat"    style={{ margin: '0 1rem' }}>チャット</Link>
             <Link to="/monitor" style={{ margin: '0 1rem' }}>ジョブログ</Link>
             <Link to="/todos"   style={{ margin: '0 1rem' }}>ToDo</Link>
+             <button
+        style={{ margin: '0 1rem' }}
+        onClick={() => {
+          localStorage.removeItem('accessToken'); // トークン削除
+          setLoggedIn(false);                     // ログアウト状態へ
+        }}
+      >
+        ログアウト
+      </button>
           </nav>
           <Routes>
             <Route path="/chat"    element={<Chat    userId={userId} />} />

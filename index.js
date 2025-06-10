@@ -277,11 +277,49 @@ const fetchTaskLogs = async (_req, res) => {
 
 app.get('/tasks', fetchTaskLogs);
 app.get('/jobs',  fetchTaskLogs);
+// ── 失敗ジョブのリトライ ────────────────────────────────────
+app.post('/jobs/:id/retry', authRequired, async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    // retryCount を +1
+    const log = await prisma.taskLog.update({
+      where: { id },
+      data: { retryCount: { increment: 1 } },
+    });
+    // scheduler を呼び出して手動実行
+    await require('./scheduler').runJobByName(log.name);
+    res.json({ message: 'リトライを実行キューに追加しました', log });
+  } catch (e) {
+    console.error('[POST /jobs/:id/retry] Error:', e);
+    res.status(500).json({ error: 'リトライに失敗しました' });
+  }
+});
+
 
 // ── Socket.io ＋ サーバー起動部分 ─────────────────────────
 if (require.main === module) {
   const server = http.createServer(app);
   const io     = new Server(server, { cors: { origin: '*' } });
+
+   // ── ジョブ実行時にリアルタイム通知 ───────────────────────
+   // scheduler.js でジョブを実行したときもここに届くように
+   // runJobByName のあとに以下 emit を呼び出すよう index.js でラップする例
+   const scheduler = require('./scheduler');
+   // 元の runJobByName をラップ
+   const originalRun = scheduler.runJobByName;
+   scheduler.runJobByName = async (name) => {
+     // 1) 本来のジョブ実行
+     const result = await originalRun(name);
+     // 2) 成功／失敗のログを取得
+     const log = await prisma.taskLog.findFirst({
+       where: { name },
+       orderBy: { runAt: 'desc' },
+     });
+     // 3) クライアント全員に通知
+     io.emit('jobUpdate', log);
+     return result;
+   };
+   // ────────────────────────────────────────────────────
 
   io.on('connection', socket => {
     socket.on('getMessages', async () => {
